@@ -12,7 +12,7 @@ def cosine_similarity(a, b):
 
 
 # Run this once.
-def save_embeddings():
+def save_embeddings(top_k: int = None):
     """Save the embeddings of the hadiths in the dataframe to a csv file."""
 
     # Read 'source_hadith.csv' into a dataframe
@@ -26,8 +26,12 @@ def save_embeddings():
                     'Hadith Text: ' + df['hadith_text']
 
     print('Start embedding...')
-    df['embedding'] = df['hadith_whole'].head(10).apply(lambda x: model.encode(x, normalize_embeddings=True)) \
-                                        .head(10).apply(lambda x: tuple(x))
+    if top_k is None:
+        embeddings = df['hadith_whole'].apply(lambda x: model.encode(x, normalize_embeddings=True))
+    else:
+        embeddings = df['hadith_whole'].head(top_k).apply(lambda x: model.encode(x, normalize_embeddings=True))
+    df['embedding'] = embeddings.apply(lambda x: tuple(x))
+                                        
     print(type(df['embedding'][0]))
 
     # Save the dataframe to a csv file
@@ -36,29 +40,29 @@ def save_embeddings():
     print('Done saving dataframe to hadith_embeddings.csv')
 
 
-def find_similar(query: str, top_n: int = 5):
-    """Find the top n similar hadiths to the query hadith."""
-
-    # Read 'hadith_embeddings.csv' into a dataframe
-    print('Reading hadith_embeddings.csv...')
-    df = pd.read_csv('hadith_embeddings2.csv')
-    df['embedding'] = df['embedding'].head(10).apply(lambda x: np.array(eval(x)))
+def find_similar(query: str, num_results: int = 5):
+    """Find the top `num_results` similar hadiths to the query hadith."""
 
     # Embed the query hadith
     print('Embedding query hadith...')
     query_embedding = model.encode(query, normalize_embeddings=True)
 
+    # Read 'hadith_embeddings.csv' into a dataframe
+    print('Reading hadith_embeddings.csv...')
+    df = pd.read_csv('hadith_embeddings2.csv')
+    df['embedding'] = df['embedding'].apply(lambda x: np.array(eval(x)))
+    
     # Calculate the cosine similarity between the query hadith and all the hadiths in the dataframe
     print('Calculating cosine similarity...')    
-    df['similarity'] =  df['embedding'].head(10).apply(lambda x: cosine_similarity(x, query_embedding))
+    df['similarity'] =  df['embedding'].apply(lambda x: cosine_similarity(x, query_embedding))
     
     # Sort the dataframe by similarity in descending order
     print('Sorting dataframe by similarity...')
     df.sort_values(by=['similarity'], inplace=True, ascending=False)
 
     # Print the top n similar hadiths
-    print(f'Printing top {top_n} similar hadiths...')
-    for i in range(top_n):
+    print(f'Printing top {num_results} similar hadiths...')
+    for i in range(num_results):
         print(f'Hadith {i+1}:')
         print(df.iloc[i]['hadith_whole'])
         print(f'Similarity: {format(df.iloc[i]["similarity"])}')
@@ -66,15 +70,16 @@ def find_similar(query: str, top_n: int = 5):
 
 
 if __name__ == '__main__':
-    save_embeddings()
+
+    # save_embeddings()
     
     book: str = '*'
     grade: str = '*'
-    hadith_text: str = "aishah reported: ... jihad"
+    hadith_text: str = "Is ablution broken by sleeping?"
 
-    query: str = 'query: \n' + \
-                    'Book: {book}\n' + \
-                    'Grade: {grade}\n' + \
-                    'Hadith Text: {hadith_text}'
-    find_similar(query, 5)
+    query: str = f'query: \n \
+                    Book: {book}\n \
+                    Grade: {grade}\n \
+                    Hadith Text: {hadith_text}'
+    find_similar(query, num_results=5)
 
